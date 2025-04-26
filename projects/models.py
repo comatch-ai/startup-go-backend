@@ -43,6 +43,14 @@ class Project(models.Model):
         ('Others', 'Others')
     ]
 
+    FUNDING_CHOICES = [
+        ('self_funded', 'Self-Funded'),
+        ('loan', 'Loan'),
+        ('investment', 'Invested'),
+        ('sponsored', 'Sponsored'),
+        ('Others', 'Others')
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=200)
     tagline = models.CharField(max_length=200)
@@ -54,6 +62,10 @@ class Project(models.Model):
     team_size = models.IntegerField(default=1)
     website = models.URLField(max_length=200, blank=True)
     social_links = models.JSONField(default=dict, blank=True)
+    equity = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)  # Percentage with 2 decimal places
+    funding = models.CharField(max_length=20, choices=FUNDING_CHOICES, default='self_funded')
+    tech_stack = models.JSONField(default=list, blank=True)  # List of technologies and keywords
+    market_traction = models.JSONField(default=list, blank=True)  # List of market achievements and traction points
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_projects')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

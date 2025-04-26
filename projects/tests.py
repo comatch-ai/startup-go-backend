@@ -37,6 +37,10 @@ class ProjectAPITests(TestCase):
             team_size=3,
             website='https://example.com',
             social_links={'github': 'https://github.com/test'},
+            equity=25.50,  # 25.5% equity
+            funding='invested',
+            tech_stack=['Python', 'Django', 'React', 'AWS'],
+            market_traction=['1000+ users', '20% monthly growth', 'Partnership with Tech Corp'],
             created_by=self.user
         )
         
@@ -64,7 +68,11 @@ class ProjectAPITests(TestCase):
             'social_links': {
                 'github': 'https://github.com/newproject',
                 'linkedin': 'https://linkedin.com/company/newproject'
-            }
+            },
+            'equity': 15.75,  # 15.75% equity
+            'funding': 'sponsored',
+            'tech_stack': ['Node.js', 'MongoDB', 'React Native', 'Firebase'],
+            'market_traction': ['500+ beta users', '15% conversion rate', 'Featured in Tech News']
         }
         
         response = self.client.post(url, data, format='json')
@@ -72,6 +80,14 @@ class ProjectAPITests(TestCase):
         self.assertEqual(Project.objects.count(), 2)
         self.assertEqual(response.data['title'], 'New Project')
         self.assertEqual(response.data['created_by']['username'], 'testuser')
+        self.assertEqual(response.data['equity'], '15.75')
+        self.assertEqual(response.data['funding'], 'sponsored')
+        self.assertEqual(response.data['tech_stack'], ['Node.js', 'MongoDB', 'React Native', 'Firebase'])
+        self.assertEqual(response.data['market_traction'], ['500+ beta users', '15% conversion rate', 'Featured in Tech News'])
+        
+        # Verify project ID is added to creator's profile
+        self.user.profile.refresh_from_db()
+        self.assertIn(response.data['id'], self.user.profile.projects)
 
     def test_get_project_list(self):
         """
@@ -218,3 +234,102 @@ class ProjectAPITests(TestCase):
         
         response = self.client.post(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_invalid_equity(self):
+        """
+        Test creating project with invalid equity percentage.
+        """
+        url = reverse('project-list')
+        data = {
+            'title': 'Invalid Project',
+            'tagline': 'Invalid Tagline',
+            'description': 'Invalid Description',
+            'industry': 'Technology',
+            'stage': 'ideation',
+            'startup_type': 'B2C',
+            'business_model': ['Freemium'],
+            'team_size': 1,
+            'equity': 150.00,  # Invalid: over 100%
+            'funding': 'self_funded'
+        }
+        
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('equity', response.data)
+
+    def test_invalid_funding(self):
+        """
+        Test creating project with invalid funding type.
+        """
+        url = reverse('project-list')
+        data = {
+            'title': 'Invalid Project',
+            'tagline': 'Invalid Tagline',
+            'description': 'Invalid Description',
+            'industry': 'Technology',
+            'stage': 'ideation',
+            'startup_type': 'B2C',
+            'business_model': ['Freemium'],
+            'team_size': 1,
+            'equity': 25.00,
+            'funding': 'invalid_funding'  # Invalid funding type
+        }
+        
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('funding', response.data)
+
+    def test_invalid_tech_stack(self):
+        """
+        Test creating project with invalid tech stack.
+        """
+        url = reverse('project-list')
+        data = {
+            'title': 'Invalid Project',
+            'tagline': 'Invalid Tagline',
+            'description': 'Invalid Description',
+            'industry': 'Technology',
+            'stage': 'ideation',
+            'startup_type': 'B2C',
+            'business_model': ['Freemium'],
+            'team_size': 1,
+            'equity': 25.00,
+            'funding': 'self_funded',
+            'tech_stack': 'Not a list'  # Invalid: should be a list
+        }
+        
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('tech_stack', response.data)
+
+    def test_invalid_market_traction(self):
+        """
+        Test creating project with invalid market traction.
+        """
+        url = reverse('project-list')
+        data = {
+            'title': 'Invalid Project',
+            'tagline': 'Invalid Tagline',
+            'description': 'Invalid Description',
+            'industry': 'Technology',
+            'stage': 'ideation',
+            'startup_type': 'B2C',
+            'business_model': ['Freemium'],
+            'team_size': 1,
+            'equity': 25.00,
+            'funding': 'self_funded',
+            'market_traction': ['Not a string', 123]  # Invalid: should be list of strings
+        }
+        
+        response = self.client.post(url, data, format='json')
+        print("Response status:", response.status_code)
+        print("Response data:", response.data)
+        
+        # First check if we get a 400 status code
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        
+        # Then check if the error message is about market_traction
+        self.assertIn('market_traction', response.data)
+        
+        # Verify that the project was not created
+        self.assertEqual(Project.objects.count(), 1)  # Only the original test project should exist

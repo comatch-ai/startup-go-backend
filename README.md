@@ -461,9 +461,29 @@ Create a new project.
     "social_links": {
         "github": "https://github.com/project",
         "linkedin": "https://linkedin.com/company/project"
-    }
+    },
+    "equity": 25.50,
+    "funding": "invested"
 }
 ```
+
+**Field Descriptions:**
+- `title`: Project title (required)
+- `tagline`: Short project description (required)
+- `description`: Detailed project description (required)
+- `industry`: Project industry (required)
+- `stage`: Project development stage (required)
+  - Choices: pre_idea, ideation, prototype, mvp, pre_seed, seed, scaling, established, expansion, pivot
+- `startup_type`: Type of startup (required)
+  - Choices: B2B, B2C, B2B2C, C2C, B2G, G2C, Others
+- `business_model`: List of business models (required)
+  - Choices: Freemium, Subscription, Marketplace, SaaS, E-commerce, Enterprise, Advertising, Transaction, Licensing, Direct Sales, Others
+- `team_size`: Number of team members (required, minimum: 1)
+- `website`: Project website URL (optional)
+- `social_links`: Dictionary of social media links (optional)
+- `equity`: Equity percentage (required, 0-100 with 2 decimal places)
+- `funding`: Funding type (required)
+  - Choices: self_funded, loan, invested, sponsored, Others
 
 **Response (201 Created):**
 
@@ -483,6 +503,8 @@ Create a new project.
         "github": "https://github.com/project",
         "linkedin": "https://linkedin.com/company/project"
     },
+    "equity": "25.50",
+    "funding": "invested",
     "created_by": {
         "id": 1,
         "username": "testuser",
@@ -490,6 +512,16 @@ Create a new project.
     },
     "created_at": "2024-02-20T10:00:00Z",
     "updated_at": "2024-02-20T10:00:00Z"
+}
+```
+
+**Error Response (400 Bad Request - Validation Error):**
+
+```json
+{
+    "equity": ["Equity must be between 0 and 100."],
+    "funding": ["Invalid funding type. Must be one of: self_funded, loan, invested, sponsored, Others"],
+    "team_size": ["Team size must be at least 1."]
 }
 ```
 
@@ -520,6 +552,8 @@ Get detailed information about a specific project.
         "github": "https://github.com/project",
         "linkedin": "https://linkedin.com/company/project"
     },
+    "equity": "25.50",
+    "funding": "invested",
     "created_by": {
         "id": 1,
         "username": "testuser",
@@ -545,6 +579,7 @@ Get a list of all projects with optional filtering.
 - `stage`: Filter by project stage
 - `startup_type`: Filter by startup type (B2B, B2C, etc.)
 - `business_model`: Filter by business model
+- `funding`: Filter by funding type (self_funded, loan, invested, sponsored, Others)
 - `page`: Page number for pagination
 - `page_size`: Number of items per page
 
@@ -567,6 +602,8 @@ Get a list of all projects with optional filtering.
             "business_model": ["Freemium", "Subscription"],
             "team_size": 3,
             "website": "https://example.com",
+            "equity": "25.50",
+            "funding": "invested",
             "created_at": "2024-02-20T10:00:00Z"
         },
         // ... more projects
@@ -599,7 +636,9 @@ Update an existing project.
     "social_links": {
         "github": "https://github.com/updated",
         "linkedin": "https://linkedin.com/company/updated"
-    }
+    },
+    "equity": 30.00,
+    "funding": "sponsored"
 }
 ```
 
@@ -621,6 +660,8 @@ Update an existing project.
         "github": "https://github.com/updated",
         "linkedin": "https://linkedin.com/company/updated"
     },
+    "equity": "30.00",
+    "funding": "sponsored",
     "created_by": {
         "id": 1,
         "username": "testuser",
