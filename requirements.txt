@@ -4,4 +4,4 @@ django-filter
 recombee-api-client
 djangorestframework-simplejwt
 Pillow
-frozen_flask
+django-cors-headers
