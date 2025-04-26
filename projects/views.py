@@ -29,9 +29,16 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """
-        Create a new project.
+        Create a new project and add it to the creator's profile.
         """
-        serializer.save(created_by=self.request.user)
+        project = serializer.save(created_by=self.request.user)
+        
+        # Add project ID to creator's profile
+        profile = self.request.user.profile
+        if not profile.projects:
+            profile.projects = []
+        profile.projects.append(str(project.id))
+        profile.save()
 
     def perform_update(self, serializer):
         """
