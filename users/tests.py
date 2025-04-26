@@ -265,3 +265,184 @@ class UserAPITests(TestCase):
         }
         response = self.client.put(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_invalid_team_size(self):
+        """
+        Test creating project with invalid team size.
+        """
+        # First login to get token
+        login_url = reverse('login')
+        login_data = {
+            'username': 'testuser',
+            'password': 'testpass123'
+        }
+        login_response = self.client.post(login_url, login_data, format='json')
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login_response.data['access']}")
+        
+        url = reverse('project-list')
+        data = {
+            'title': 'Invalid Project',
+            'tagline': 'Invalid Tagline',
+            'description': 'Invalid Description',
+            'industry': 'Technology',
+            'stage': 'ideation',
+            'startup_type': 'B2C',
+            'business_model': ['Freemium'],
+            'team_size': 0
+        }
+        
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_get_user_profile(self):
+        """
+        Test getting a user's profile by username.
+        """
+        # First login to get token
+        login_url = reverse('login')
+        login_data = {
+            'username': 'testuser',
+            'password': 'testpass123'
+        }
+        login_response = self.client.post(login_url, login_data, format='json')
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login_response.data['access']}")
+        
+        # Get profile by username
+        url = reverse('user-profile', args=['testuser'])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['username'], 'testuser')
+        self.assertEqual(response.data['profile']['industry'], '')
+        self.assertEqual(response.data['profile']['role'], '')
+        self.assertEqual(response.data['profile']['location'], '')
+
+    def test_get_nonexistent_user_profile(self):
+        """
+        Test getting profile for a non-existent user.
+        """
+        # First login to get token
+        login_url = reverse('login')
+        login_data = {
+            'username': 'testuser',
+            'password': 'testpass123'
+        }
+        login_response = self.client.post(login_url, login_data, format='json')
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login_response.data['access']}")
+        
+        # Try to get profile for non-existent user
+        url = reverse('user-profile', args=['nonexistentuser'])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.data['error'], 'User not found')
+
+    def test_get_user_profile_unauthorized(self):
+        """
+        Test getting user profile without authentication.
+        """
+        # Create a new client without authentication
+        client = APIClient()
+        
+        # Try to get profile without authentication
+        url = reverse('user-profile', args=['testuser'])
+        response = client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_get_user_profile_list(self):
+        """
+        Test getting list of all user profiles.
+        """
+        # First login to get token
+        login_url = reverse('login')
+        login_data = {
+            'username': 'testuser',
+            'password': 'testpass123'
+        }
+        login_response = self.client.post(login_url, login_data, format='json')
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login_response.data['access']}")
+        
+        # Get all profiles
+        url = reverse('user-profile-list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)  # Only one user in test setup
+
+    def test_get_user_profile_list_with_filters(self):
+        """
+        Test getting filtered list of user profiles.
+        """
+        # Create another user with different profile
+        other_user = User.objects.create_user(
+            username='otheruser',
+            email='other@example.com',
+            password='testpass123'
+        )
+        
+        # Update the existing profile (created by signal)
+        other_user.profile.industry = 'Healthcare'
+        other_user.profile.role = 'Doctor'
+        other_user.profile.location = 'Boston, USA'
+        other_user.profile.skills = 'Medicine, Research'
+        other_user.profile.startup_stage = 'ideation'
+        other_user.profile.save()
+        
+        # First login to get token
+        login_url = reverse('login')
+        login_data = {
+            'username': 'testuser',
+            'password': 'testpass123'
+        }
+        login_response = self.client.post(login_url, login_data, format='json')
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login_response.data['access']}")
+        
+        # Test filtering by industry
+        url = reverse('user-profile-list')
+        response = self.client.get(url, {'industry': 'Healthcare'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['profile']['industry'], 'Healthcare')
+        
+        # Test filtering by role
+        response = self.client.get(url, {'role': 'Doctor'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['profile']['role'], 'Doctor')
+        
+        # Test filtering by location
+        response = self.client.get(url, {'location': 'Boston, USA'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['profile']['location'], 'Boston, USA')
+        
+        # Test filtering by skills
+        response = self.client.get(url, {'skills': 'Medicine'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['username'], 'otheruser')
+        
+        # Test filtering by startup stage
+        response = self.client.get(url, {'startup_stage': 'ideation'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['username'], 'otheruser')
+        
+        # Test multiple filters
+        response = self.client.get(url, {
+            'industry': 'Healthcare',
+            'role': 'Doctor',
+            'location': 'Boston, USA'
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['username'], 'otheruser')
+
+    def test_get_user_profile_list_unauthorized(self):
+        """
+        Test getting user profile list without authentication.
+        """
+        # Create a new client without authentication
+        client = APIClient()
+        
+        # Try to get profile list without authentication
+        url = reverse('user-profile-list')
+        response = client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

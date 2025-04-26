@@ -12,6 +12,7 @@ from .serializers import (
     ProfileSerializer
 )
 from .models import Profile
+from django.contrib.auth.models import User
 
 # Create your views here.
 
@@ -259,3 +260,92 @@ class AvatarUploadView(APIView):
         return Response({
             'avatar': profile.avatar.url
         })
+
+class UserProfileView(APIView):
+    """
+    API endpoint for querying user profiles by username.
+    """
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, username):
+        """
+        Get a user's profile by username.
+        
+        Args:
+            request: The HTTP request
+            username: The username of the user whose profile to retrieve
+            
+        Returns:
+            Response: User profile data or error message
+            
+        Possible errors:
+            - "User not found" (404)
+            - "Profile not found" (404)
+        """
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Ensure profile exists
+        if not hasattr(user, 'profile'):
+            Profile.objects.create(user=user)
+            
+        serializer = UserProfileSerializer(user)
+        return Response(serializer.data)
+
+class UserProfileListView(APIView):
+    """
+    API endpoint for listing all user profiles.
+    """
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        """
+        Get a list of all user profiles.
+        
+        Args:
+            request: The HTTP request
+            
+        Returns:
+            Response: List of user profiles
+            
+        Query Parameters:
+            - industry: Filter by industry
+            - role: Filter by role
+            - location: Filter by location
+            - skills: Filter by skills (comma-separated)
+            - startup_stage: Filter by startup stage
+        """
+        # Get all users with profiles
+        users = User.objects.filter(profile__isnull=False)
+        
+        # Apply filters if provided
+        industry = request.query_params.get('industry')
+        if industry:
+            users = users.filter(profile__industry=industry)
+            
+        role = request.query_params.get('role')
+        if role:
+            users = users.filter(profile__role=role)
+            
+        location = request.query_params.get('location')
+        if location:
+            users = users.filter(profile__location=location)
+            
+        skills = request.query_params.get('skills')
+        if skills:
+            skills_list = [skill.strip() for skill in skills.split(',')]
+            for skill in skills_list:
+                users = users.filter(profile__skills__icontains=skill)
+                
+        startup_stage = request.query_params.get('startup_stage')
+        if startup_stage:
+            users = users.filter(profile__startup_stage=startup_stage)
+        
+        # Serialize the results
+        serializer = UserProfileSerializer(users, many=True)
+        return Response(serializer.data)

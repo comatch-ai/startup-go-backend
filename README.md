@@ -219,6 +219,136 @@ Get the current user's profile information.
 }
 ```
 
+#### Get User Profile by Username
+
+```http
+GET /api/users/<username>/profile/
+Authorization: Bearer <access_token>
+```
+
+Get a user's profile by their username.
+
+**URL Parameters:**
+- `username`: The username of the user whose profile to retrieve
+
+**Response (200 OK):**
+
+```json
+{
+    "id": 1,
+    "username": "testuser",
+    "email": "test@example.com",
+    "first_name": "Test",
+    "last_name": "User",
+    "profile": {
+        "bio": "Software Developer",
+        "avatar": "https://example.com/avatars/user1.jpg",
+        "industry": "Technology",
+        "role": "Software Engineer",
+        "location": "New York, USA",
+        "skills": "Python, Django, React, AWS",
+        "goals": "Build innovative solutions and contribute to open source",
+        "website": "https://example.com",
+        "social_links": {
+            "github": "https://github.com/testuser",
+            "linkedin": "https://linkedin.com/in/testuser"
+        },
+        "projects": ["project-id-1", "project-id-2"]
+    }
+}
+```
+
+**Error Response (404 Not Found):**
+
+```json
+{
+    "error": "User not found"
+}
+```
+
+**Error Response (401 Unauthorized):**
+
+```json
+{
+    "detail": "Authentication credentials were not provided."
+}
+```
+
+#### List All User Profiles
+
+```http
+GET /api/users/profiles/
+Authorization: Bearer <access_token>
+```
+
+Get a list of all user profiles with optional filtering.
+
+**Query Parameters:**
+- `industry`: Filter by industry (e.g., Technology, Healthcare)
+- `role`: Filter by role (e.g., Software Engineer, Doctor)
+- `location`: Filter by location (e.g., New York, San Francisco)
+- `skills`: Filter by skills (comma-separated, e.g., Python,Django,React)
+- `startup_stage`: Filter by startup stage (e.g., ideation, mvp)
+
+**Response (200 OK):**
+
+```json
+[
+    {
+        "id": 1,
+        "username": "testuser",
+        "email": "test@example.com",
+        "first_name": "Test",
+        "last_name": "User",
+        "profile": {
+            "bio": "Software Developer",
+            "avatar": "https://example.com/avatars/user1.jpg",
+            "industry": "Technology",
+            "role": "Software Engineer",
+            "location": "New York, USA",
+            "skills": "Python, Django, React, AWS",
+            "goals": "Build innovative solutions and contribute to open source",
+            "website": "https://example.com",
+            "social_links": {
+                "github": "https://github.com/testuser",
+                "linkedin": "https://linkedin.com/in/testuser"
+            },
+            "projects": ["project-id-1", "project-id-2"]
+        }
+    },
+    {
+        "id": 2,
+        "username": "otheruser",
+        "email": "other@example.com",
+        "first_name": "Other",
+        "last_name": "User",
+        "profile": {
+            "bio": "Healthcare Professional",
+            "avatar": "https://example.com/avatars/user2.jpg",
+            "industry": "Healthcare",
+            "role": "Doctor",
+            "location": "Boston, USA",
+            "skills": "Medicine, Research",
+            "goals": "Improve healthcare through technology",
+            "website": "https://other.com",
+            "social_links": {
+                "github": "https://github.com/otheruser",
+                "linkedin": "https://linkedin.com/in/otheruser"
+            },
+            "projects": []
+        }
+    }
+]
+```
+
+**Error Response (401 Unauthorized):**
+
+```json
+{
+    "detail": "Authentication credentials were not provided."
+}
+```
+
 #### Update User Profile
 
 ```http
