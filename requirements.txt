@@ -3,3 +3,4 @@ markdown
 django-filter
 recombee-api-client
 djangorestframework-simplejwt
+Pillow

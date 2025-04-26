@@ -2,10 +2,16 @@ from django.shortcuts import render
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-from .serializers import UserRegistrationSerializer, UserLoginSerializer
+from .serializers import (
+    UserRegistrationSerializer, 
+    UserLoginSerializer,
+    UserProfileSerializer,
+    ProfileSerializer
+)
+from .models import Profile
 
 # Create your views here.
 
@@ -41,7 +47,7 @@ class UserRegistrationView(APIView):
     
     Error Response (400 Bad Request):
     {
-        "username": ["This field is required."],
+        "username": ["A user with this username already exists."],
         "password": ["This field is required."],
         "password2": ["This field is required."]
     }
@@ -49,16 +55,21 @@ class UserRegistrationView(APIView):
     permission_classes = (AllowAny,)
 
     def post(self, request):
-
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
-            user = serializer.save()
-            refresh = RefreshToken.for_user(user)
-            return Response({
-                'user': serializer.data,
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-            }, status=status.HTTP_201_CREATED)
+            try:
+                user = serializer.save()
+                refresh = RefreshToken.for_user(user)
+                return Response({
+                    'user': serializer.data,
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                }, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                return Response(
+                    {'error': str(e)},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class UserLoginView(APIView):
@@ -103,3 +114,148 @@ class UserLoginView(APIView):
                 })
             return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class ProfileView(APIView):
+    """
+    API endpoint for user profile management.
+    
+    This endpoint allows authenticated users to:
+    1. Get their profile information
+    2. Create a new profile (POST)
+    3. Update their profile information including:
+       - Basic info (first_name, last_name)
+       - Professional info (industry, role, skills)
+       - Personal info (bio, goals)
+       - Contact info (location, website)
+       - Social links and projects
+    """
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        """
+        Get the current user's profile.
+        
+        Returns:
+            Response: User profile data including all fields:
+                - Basic user info (id, username, email, name)
+                - Professional info (industry, role, skills)
+                - Personal info (bio, goals)
+                - Contact info (location, website)
+                - Social links and projects
+        """
+        # Ensure profile exists
+        if not hasattr(request.user, 'profile'):
+            Profile.objects.create(user=request.user)
+            
+        serializer = UserProfileSerializer(request.user)
+        return Response(serializer.data)
+
+    def post(self, request):
+        """
+        Create or initialize the user's profile.
+        
+        Args:
+            request: The HTTP request containing profile data
+            
+        Returns:
+            Response: Created profile data or validation errors
+            
+        Note:
+            This endpoint is typically called after user registration
+            to initialize the profile with additional information.
+        """
+        # Check if profile already exists
+        if hasattr(request.user, 'profile'):
+            return Response(
+                {'error': 'Profile already exists'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create profile if it doesn't exist
+        if not hasattr(request.user, 'profile'):
+            Profile.objects.create(user=request.user)
+
+        serializer = UserProfileSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            try:
+                user = serializer.save()
+                return Response(
+                    UserProfileSerializer(user).data,
+                    status=status.HTTP_201_CREATED
+                )
+            except Exception as e:
+                return Response(
+                    {'error': str(e)},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def put(self, request):
+        """
+        Update the current user's profile.
+        
+        Args:
+            request: The HTTP request containing profile update data
+            
+        Returns:
+            Response: Updated user profile data or validation errors
+            
+        Possible validation errors:
+            - skills: "Skills description is too long"
+            - goals: "Goals description is too long"
+            - industry: "This field is required" (if required=True)
+            - role: "This field is required" (if required=True)
+        """
+        # Ensure profile exists
+        if not hasattr(request.user, 'profile'):
+            Profile.objects.create(user=request.user)
+
+        serializer = UserProfileSerializer(request.user, data=request.data, partial=True, context={'request': request})
+        if serializer.is_valid():
+            try:
+                serializer.save()
+                return Response(serializer.data)
+            except Exception as e:
+                return Response(
+                    {'error': str(e)},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class AvatarUploadView(APIView):
+    """
+    API endpoint for uploading user avatar.
+    """
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        """
+        Upload or update the user's avatar.
+        
+        Args:
+            request: The HTTP request containing the avatar file
+            
+        Returns:
+            Response: Avatar URL or error message
+            
+        Possible errors:
+            - "No avatar file provided"
+            - "Invalid file type" (if file validation is added)
+        """
+        # Ensure profile exists
+        if not hasattr(request.user, 'profile'):
+            Profile.objects.create(user=request.user)
+
+        if 'avatar' not in request.FILES:
+            return Response(
+                {'error': 'No avatar file provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        profile = request.user.profile
+        profile.avatar = request.FILES['avatar']
+        profile.save()
+
+        return Response({
+            'avatar': profile.avatar.url
+        })
