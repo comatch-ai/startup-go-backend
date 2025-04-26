@@ -5,6 +5,24 @@ from rest_framework.response import Response
 from rest_framework import status
 from users.serializers import UserProfileSerializer
 
+def jaccard_similarity(set1, set2):
+    if not set1 or not set2:
+        return 0.0
+    intersection = set1 & set2
+    union = set1 | set2
+    return len(intersection) / len(union) if union else 0.0
+
+def simple_text_similarity(text1, text2):
+    if not text1 or not text2:
+        return 0.0
+    text1 = text1.lower()
+    text2 = text2.lower()
+    if text1 == text2:
+        return 1.0
+    if text1 in text2 or text2 in text1:
+        return 0.5
+    return 0.0
+
 class RecommendationView(APIView):
     """
     API endpoint for recommending users based on profile similarity.
@@ -22,24 +40,41 @@ class RecommendationView(APIView):
         current_profile = current_user.profile
         users = User.objects.filter(profile__isnull=False).exclude(id=current_user.id)
 
+        # 权重设置
+        weights = {
+            'industry': 2,
+            'role': 2,
+            'location': 1,
+            'skills': 4,
+            'goals': 1,
+        }
+
         recommendations = []
         for user in users:
             profile = user.profile
-            score = 0
+            score = 0.0
 
-            # Calculate similarity score
-            if current_profile.industry and current_profile.industry == profile.industry:
-                score += 1
-            if current_profile.role and current_profile.role == profile.role:
-                score += 1
-            if current_profile.location and current_profile.location == profile.location:
-                score += 1
-            if current_profile.skills and profile.skills:
-                current_skills = set(current_profile.skills.split(','))
-                other_skills = set(profile.skills.split(','))
-                score += len(current_skills & other_skills)  # Intersection of skills
-            if current_profile.goals and profile.goals:
-                score += 1 if current_profile.goals in profile.goals or profile.goals in current_profile.goals else 0
+            # 行业
+            if current_profile.industry and profile.industry and current_profile.industry == profile.industry:
+                score += weights['industry']
+
+            # 角色
+            if current_profile.role and profile.role and current_profile.role == profile.role:
+                score += weights['role']
+
+            # 地点
+            if current_profile.location and profile.location and current_profile.location == profile.location:
+                score += weights['location']
+
+            # 技能 Jaccard 相似度
+            skills1 = set([s.strip().lower() for s in current_profile.skills.split(',') if s.strip()]) if current_profile.skills else set()
+            skills2 = set([s.strip().lower() for s in profile.skills.split(',') if s.strip()]) if profile.skills else set()
+            skill_sim = jaccard_similarity(skills1, skills2)
+            score += weights['skills'] * skill_sim
+
+            # 目标文本相似度
+            goal_sim = simple_text_similarity(current_profile.goals, profile.goals)
+            score += weights['goals'] * goal_sim
 
             if score > 0:
                 recommendations.append({
@@ -48,10 +83,10 @@ class RecommendationView(APIView):
                     'first_name': user.first_name,
                     'last_name': user.last_name,
                     'profile': UserProfileSerializer(user).data,
-                    'score': score
+                    'score': round(score, 3)
                 })
 
-        # Sort recommendations by score in descending order
+        # 按得分降序排序
         recommendations.sort(key=lambda x: x['score'], reverse=True)
 
         return Response(recommendations, status=status.HTTP_200_OK)
