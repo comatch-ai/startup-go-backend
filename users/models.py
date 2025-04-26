@@ -7,6 +7,19 @@ class Profile(models.Model):
     """
     Profile model that extends the User model.
     """
+    STAGE_CHOICES = [
+        ('pre_idea', 'Pre-Idea Exploration'),
+        ('ideation', 'Ideation/Concept'),
+        ('prototype', 'Prototype Development'),
+        ('mvp', 'MVP'),
+        ('pre_seed', 'Pre-Seed/Early Traction'),
+        ('seed', 'Seed/Traction'),
+        ('scaling', 'Scaling/Growth'),
+        ('established', 'Established/Post Series-A'),
+        ('expansion', 'Expansion/Post Series-B'),
+        ('pivot', 'Pivot'),
+    ]
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     bio = models.TextField(max_length=500, blank=True)
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
@@ -18,6 +31,9 @@ class Profile(models.Model):
     website = models.URLField(max_length=200, blank=True)
     social_links = models.JSONField(default=dict, blank=True)
     projects = models.JSONField(default=list, blank=True)  # List of project IDs
+    experience_years = models.IntegerField(default=0)
+    startup_stage = models.CharField(max_length=50, choices=STAGE_CHOICES, default='pre_idea')
+    seeking_roles = models.JSONField(default=list, blank=True)  # Roles they want in a co-founder
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

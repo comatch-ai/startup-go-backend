@@ -20,7 +20,10 @@ class ProfileSerializer(serializers.ModelSerializer):
             'goals',
             'website', 
             'social_links', 
-            'projects'
+            'projects',
+            'experience_years',
+            'startup_stage',
+            'seeking_roles'
         )
         extra_kwargs = {
             'bio': {'required': False},
@@ -32,7 +35,10 @@ class ProfileSerializer(serializers.ModelSerializer):
             'goals': {'required': False},
             'website': {'required': False},
             'social_links': {'required': False},
-            'projects': {'required': False}
+            'projects': {'required': False},
+            'experience_years': {'required': False},
+            'startup_stage': {'required': False},
+            'seeking_roles': {'required': False}
         }
 
     def validate_skills(self, value):
@@ -49,6 +55,31 @@ class ProfileSerializer(serializers.ModelSerializer):
         """
         if value and len(value) > 1000:  # Arbitrary limit, adjust as needed
             raise serializers.ValidationError("Goals description is too long.")
+        return value
+
+    def validate_experience_years(self, value):
+        """
+        Validate experience_years field.
+        """
+        if value < 0:
+            raise serializers.ValidationError("Experience years cannot be negative.")
+        return value
+
+    def validate_startup_stage(self, value):
+        """
+        Validate startup_stage field.
+        """
+        valid_stages = [choice[0] for choice in Profile.STAGE_CHOICES]
+        if value and value not in valid_stages:
+            raise serializers.ValidationError(f"Invalid startup stage. Must be one of: {', '.join(valid_stages)}")
+        return value
+
+    def validate_seeking_roles(self, value):
+        """
+        Validate seeking_roles field.
+        """
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Seeking roles must be a list.")
         return value
 
 class UserProfileSerializer(serializers.ModelSerializer):

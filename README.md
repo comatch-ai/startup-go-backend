@@ -303,6 +303,215 @@ avatar: <file>
 }
 ```
 
+### Project Management Endpoints
+
+#### Create Project
+
+```http
+POST /api/projects/
+Content-Type: application/json
+Authorization: Bearer <access_token>
+```
+
+Create a new project.
+
+**Request Body:**
+
+```json
+{
+    "title": "AI-Powered Task Manager",
+    "tagline": "Revolutionizing personal productivity through AI",
+    "description": "An intelligent task management system that uses AI to prioritize and organize tasks",
+    "industry": "Technology",
+    "stage": "ideation",
+    "startup_type": "B2C",
+    "business_model": ["Freemium", "Subscription"],
+    "team_size": 3,
+    "website": "https://example.com",
+    "social_links": {
+        "github": "https://github.com/project",
+        "linkedin": "https://linkedin.com/company/project"
+    }
+}
+```
+
+**Response (201 Created):**
+
+```json
+{
+    "id": "project-id-1",
+    "title": "AI-Powered Task Manager",
+    "tagline": "Revolutionizing personal productivity through AI",
+    "description": "An intelligent task management system that uses AI to prioritize and organize tasks",
+    "industry": "Technology",
+    "stage": "ideation",
+    "startup_type": "B2C",
+    "business_model": ["Freemium", "Subscription"],
+    "team_size": 3,
+    "website": "https://example.com",
+    "social_links": {
+        "github": "https://github.com/project",
+        "linkedin": "https://linkedin.com/company/project"
+    },
+    "created_by": {
+        "id": 1,
+        "username": "testuser",
+        "email": "test@example.com"
+    },
+    "created_at": "2024-02-20T10:00:00Z",
+    "updated_at": "2024-02-20T10:00:00Z"
+}
+```
+
+#### Get Project Details
+
+```http
+GET /api/projects/{project_id}/
+Authorization: Bearer <access_token>
+```
+
+Get detailed information about a specific project.
+
+**Response (200 OK):**
+
+```json
+{
+    "id": "project-id-1",
+    "title": "AI-Powered Task Manager",
+    "tagline": "Revolutionizing personal productivity through AI",
+    "description": "An intelligent task management system that uses AI to prioritize and organize tasks",
+    "industry": "Technology",
+    "stage": "ideation",
+    "startup_type": "B2C",
+    "business_model": ["Freemium", "Subscription"],
+    "team_size": 3,
+    "website": "https://example.com",
+    "social_links": {
+        "github": "https://github.com/project",
+        "linkedin": "https://linkedin.com/company/project"
+    },
+    "created_by": {
+        "id": 1,
+        "username": "testuser",
+        "email": "test@example.com"
+    },
+    "created_at": "2024-02-20T10:00:00Z",
+    "updated_at": "2024-02-20T10:00:00Z"
+}
+```
+
+#### List Projects
+
+```http
+GET /api/projects/
+Authorization: Bearer <access_token>
+```
+
+Get a list of all projects with optional filtering.
+
+**Query Parameters:**
+
+- `industry`: Filter by industry
+- `stage`: Filter by project stage
+- `startup_type`: Filter by startup type (B2B, B2C, etc.)
+- `business_model`: Filter by business model
+- `page`: Page number for pagination
+- `page_size`: Number of items per page
+
+**Response (200 OK):**
+
+```json
+{
+    "count": 100,
+    "next": "http://api.example.com/projects/?page=2",
+    "previous": null,
+    "results": [
+        {
+            "id": "project-id-1",
+            "title": "AI-Powered Task Manager",
+            "tagline": "Revolutionizing personal productivity through AI",
+            "description": "An intelligent task management system...",
+            "industry": "Technology",
+            "stage": "ideation",
+            "startup_type": "B2C",
+            "business_model": ["Freemium", "Subscription"],
+            "team_size": 3,
+            "website": "https://example.com",
+            "created_at": "2024-02-20T10:00:00Z"
+        },
+        // ... more projects
+    ]
+}
+```
+
+#### Update Project
+
+```http
+PUT /api/projects/{project_id}/
+Content-Type: application/json
+Authorization: Bearer <access_token>
+```
+
+Update an existing project.
+
+**Request Body:**
+
+```json
+{
+    "title": "Updated Project Title",
+    "tagline": "Updated tagline",
+    "description": "Updated project description",
+    "stage": "prototype",
+    "startup_type": "B2B2C",
+    "business_model": ["Subscription", "Enterprise"],
+    "team_size": 4,
+    "website": "https://updated.com",
+    "social_links": {
+        "github": "https://github.com/updated",
+        "linkedin": "https://linkedin.com/company/updated"
+    }
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+    "id": "project-id-1",
+    "title": "Updated Project Title",
+    "tagline": "Updated tagline",
+    "description": "Updated project description",
+    "industry": "Technology",
+    "stage": "prototype",
+    "startup_type": "B2B2C",
+    "business_model": ["Subscription", "Enterprise"],
+    "team_size": 4,
+    "website": "https://updated.com",
+    "social_links": {
+        "github": "https://github.com/updated",
+        "linkedin": "https://linkedin.com/company/updated"
+    },
+    "created_by": {
+        "id": 1,
+        "username": "testuser",
+        "email": "test@example.com"
+    },
+    "created_at": "2024-02-20T10:00:00Z",
+    "updated_at": "2024-02-20T11:00:00Z"
+}
+```
+
+#### Delete Project
+
+```http
+DELETE /api/projects/{project_id}/
+Authorization: Bearer <access_token>
+```
+
+Delete a project.
+
+**Response (204 No Content)**
+
 ### Authentication
 
 All protected endpoints require JWT authentication. Include the access token in the Authorization header:
