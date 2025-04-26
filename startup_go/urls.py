@@ -25,6 +25,7 @@ urlpatterns = [
     path('api/users/', include('users.urls')),
     path('api/projects/', include('projects.urls')),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/recommendations/', include('recommendations.urls')),
 ]
 
 # Serve media files in development
