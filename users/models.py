@@ -34,6 +34,7 @@ class Profile(models.Model):
     experience_years = models.IntegerField(default=0)
     startup_stage = models.CharField(max_length=50, choices=STAGE_CHOICES, default='pre_idea')
     seeking_roles = models.JSONField(default=list, blank=True)  # Roles they want in a co-founder
+    friends = models.JSONField(default=list, blank=True)  # List of user IDs
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

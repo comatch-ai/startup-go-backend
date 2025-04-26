@@ -8,6 +8,8 @@ class ProfileSerializer(serializers.ModelSerializer):
     """
     Serializer for the Profile model.
     """
+    friends = serializers.ListField(child=serializers.IntegerField(), read_only=True)
+
     class Meta:
         model = Profile
         fields = (
@@ -23,7 +25,8 @@ class ProfileSerializer(serializers.ModelSerializer):
             'projects',
             'experience_years',
             'startup_stage',
-            'seeking_roles'
+            'seeking_roles',
+            'friends',
         )
         extra_kwargs = {
             'bio': {'required': False},
@@ -38,7 +41,8 @@ class ProfileSerializer(serializers.ModelSerializer):
             'projects': {'required': False},
             'experience_years': {'required': False},
             'startup_stage': {'required': False},
-            'seeking_roles': {'required': False}
+            'seeking_roles': {'required': False},
+            # 'friends': {'required': False},
         }
 
     def validate_skills(self, value):

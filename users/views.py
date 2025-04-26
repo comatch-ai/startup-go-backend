@@ -13,6 +13,8 @@ from .serializers import (
 )
 from .models import Profile
 from django.contrib.auth.models import User
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.generics import get_object_or_404
 
 # Create your views here.
 
@@ -349,3 +351,62 @@ class UserProfileListView(APIView):
         # Serialize the results
         serializer = UserProfileSerializer(users, many=True)
         return Response(serializer.data)
+
+class AddFriendView(APIView):
+    """
+    API endpoint to add a friend by user ID.
+    """
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        friend_id = request.data.get('friend_id')
+        if not friend_id:
+            return Response({'error': 'friend_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            friend = User.objects.get(id=friend_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        profile = request.user.profile
+        if friend.id in profile.friends:
+            return Response({'error': 'Already friends'}, status=status.HTTP_400_BAD_REQUEST)
+        profile.friends.append(friend.id)
+        profile.save()
+        return Response({'success': f'User {friend.username} added as a friend.'}, status=status.HTTP_200_OK)
+
+class RemoveFriendView(APIView):
+    """
+    API endpoint to remove a friend by user ID.
+    """
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        friend_id = request.data.get('friend_id')
+        if not friend_id:
+            return Response({'error': 'friend_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        profile = request.user.profile
+        if friend_id not in profile.friends:
+            return Response({'error': 'User is not in your friends list'}, status=status.HTTP_400_BAD_REQUEST)
+        profile.friends.remove(friend_id)
+        profile.save()
+        return Response({'success': f'User {friend_id} removed from friends.'}, status=status.HTTP_200_OK)
+
+class FriendMatchView(APIView):
+    """
+    API endpoint to get mutual friends (users who are friends with the current user and vice versa).
+    """
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        user = request.user
+        user_id = user.id
+        profile = user.profile
+        friends_ids = profile.friends
+        mutual_friends = []
+        for fid in friends_ids:
+            try:
+                friend_profile = Profile.objects.get(user_id=fid)
+                if user_id in friend_profile.friends:
+                    mutual_friends.append(fid)
+            except Profile.DoesNotExist:
+                continue
+        return Response({'mutual_friends': mutual_friends}, status=status.HTTP_200_OK)

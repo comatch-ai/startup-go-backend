@@ -19,9 +19,21 @@ class UserAPITests(TestCase):
             first_name='Test',
             last_name='User'
         )
-        
-        # Set up API client
+        # Create another user
+        self.friend = User.objects.create_user(
+            username='frienduser',
+            email='friend@example.com',
+            password='testpass123',
+            first_name='Friend',
+            last_name='User'
+        )
         self.client = APIClient()
+
+    def authenticate(self):
+        login_url = reverse('login')
+        login_data = {'username': 'testuser', 'password': 'testpass123'}
+        login_response = self.client.post(login_url, login_data, format='json')
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login_response.data['access']}")
 
     def test_user_registration(self):
         """
@@ -39,7 +51,7 @@ class UserAPITests(TestCase):
         
         response = self.client.post(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(User.objects.count(), 2)
+        self.assertEqual(User.objects.count(), 3)
         self.assertEqual(response.data['user']['username'], 'newuser')
         self.assertIn('refresh', response.data)
         self.assertIn('access', response.data)
@@ -166,7 +178,7 @@ class UserAPITests(TestCase):
         # Since profile is automatically created by signal, we should use PUT instead of POST
         response = self.client.put(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(Profile.objects.count(), 1)
+        self.assertEqual(Profile.objects.count(), 2)
         print(response.data)
         self.assertEqual(response.data['profile']['industry'], 'Technology')
 
@@ -364,7 +376,7 @@ class UserAPITests(TestCase):
         url = reverse('user-profile-list')
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)  # Only one user in test setup
+        self.assertEqual(len(response.data), 2)  # Two users in test setup
 
     def test_get_user_profile_list_with_filters(self):
         """
@@ -446,3 +458,89 @@ class UserAPITests(TestCase):
         url = reverse('user-profile-list')
         response = client.get(url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_add_friend_success(self):
+        self.authenticate()
+        url = reverse('add-friend')
+        response = self.client.post(url, {'friend_id': self.friend.id}, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.user.profile.refresh_from_db()
+        self.assertIn(self.friend.id, self.user.profile.friends)
+
+    def test_add_friend_already_friend(self):
+        self.authenticate()
+        self.user.profile.friends.append(self.friend.id)
+        self.user.profile.save()
+        url = reverse('add-friend')
+        response = self.client.post(url, {'friend_id': self.friend.id}, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Already friends', response.data['error'])
+
+    def test_add_friend_nonexistent(self):
+        self.authenticate()
+        url = reverse('add-friend')
+        response = self.client.post(url, {'friend_id': 99999}, format='json')
+        self.assertEqual(response.status_code, 404)
+        self.assertIn('User not found', response.data['error'])
+
+    def test_remove_friend_success(self):
+        self.authenticate()
+        self.user.profile.friends.append(self.friend.id)
+        self.user.profile.save()
+        url = reverse('remove-friend')
+        response = self.client.post(url, {'friend_id': self.friend.id}, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.user.profile.refresh_from_db()
+        self.assertNotIn(self.friend.id, self.user.profile.friends)
+
+    def test_remove_friend_not_in_list(self):
+        self.authenticate()
+        url = reverse('remove-friend')
+        response = self.client.post(url, {'friend_id': self.friend.id}, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('not in your friends list', response.data['error'])
+
+    def test_remove_friend_nonexistent(self):
+        self.authenticate()
+        url = reverse('remove-friend')
+        response = self.client.post(url, {'friend_id': 99999}, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('not in your friends list', response.data['error'])
+
+    def test_add_friend_unauthorized(self):
+        url = reverse('add-friend')
+        response = self.client.post(url, {'friend_id': self.friend.id}, format='json')
+        self.assertEqual(response.status_code, 401)
+
+    def test_remove_friend_unauthorized(self):
+        url = reverse('remove-friend')
+        response = self.client.post(url, {'friend_id': self.friend.id}, format='json')
+        self.assertEqual(response.status_code, 401)
+
+    def test_friend_match_success(self):
+        self.authenticate()
+        # Add each other as friends
+        self.user.profile.friends.append(self.friend.id)
+        self.user.profile.save()
+        self.friend.profile.friends.append(self.user.id)
+        self.friend.profile.save()
+        url = reverse('friend-match')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.friend.id, response.data['mutual_friends'])
+
+    def test_friend_match_no_mutual(self):
+        self.authenticate()
+        # Only one-way friendship
+        self.user.profile.friends.append(self.friend.id)
+        self.user.profile.save()
+        url = reverse('friend-match')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(self.friend.id, response.data['mutual_friends'])
+        self.assertEqual(response.data['mutual_friends'], [])
+
+    def test_friend_match_unauthorized(self):
+        url = reverse('friend-match')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 401)

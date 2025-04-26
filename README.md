@@ -683,6 +683,75 @@ Delete a project.
 
 **Response (204 No Content)**
 
+### Recommendation Endpoints
+
+#### Get User Recommendations
+
+```http
+GET /api/recommendations/
+Authorization: Bearer <access_token>
+```
+
+Get personalized user recommendations based on profile similarity.
+
+**Description:**
+This endpoint recommends users based on the following criteria:
+- Industry match
+- Role match
+- Location match
+- Skills overlap
+- Goals similarity
+
+The recommendations are scored and sorted by similarity score.
+
+**Response (200 OK):**
+
+```json
+[
+    {
+        "username": "recommendeduser",
+        "email": "recommended@example.com",
+        "first_name": "Recommended",
+        "last_name": "User",
+        "profile": {
+            "bio": "Software Developer",
+            "avatar": "https://example.com/avatars/user1.jpg",
+            "industry": "Technology",
+            "role": "Software Engineer",
+            "location": "New York, USA",
+            "skills": "Python, Django, React, AWS",
+            "goals": "Build innovative solutions and contribute to open source",
+            "website": "https://example.com",
+            "social_links": {
+                "github": "https://github.com/recommendeduser",
+                "linkedin": "https://linkedin.com/in/recommendeduser"
+            },
+            "projects": ["project-id-1", "project-id-2"]
+        },
+        "score": 4
+    },
+    // ... more recommendations
+]
+```
+
+**Error Response (404 Not Found):**
+
+```json
+{
+    "error": "Profile not found"
+}
+```
+
+**Error Response (401 Unauthorized):**
+
+```json
+{
+    "detail": "Authentication credentials were not provided."
+}
+```
+
+**Note:** The score represents the number of matching criteria between the current user and the recommended user. Higher scores indicate better matches.
+
 ### Authentication
 
 All protected endpoints require JWT authentication. Include the access token in the Authorization header:
@@ -695,3 +764,92 @@ Authorization: Bearer <access_token>
 
 - Access Token: 60 minutes
 - Refresh Token: 24 hours
+
+### Friend Management Endpoints
+
+#### Add a Friend
+
+```http
+POST /api/friends/add/
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+Add a user to your friends list by their user ID.
+
+**Request Body:**
+```json
+{
+  "friend_id": 2
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": "User frienduser added as a friend."
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` if already friends or missing friend_id.
+- `404 Not Found` if the user does not exist.
+- `401 Unauthorized` if not authenticated.
+
+---
+
+#### Remove a Friend
+
+```http
+POST /api/friends/remove/
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+Remove a user from your friends list by their user ID.
+
+**Request Body:**
+```json
+{
+  "friend_id": 2
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": "User 2 removed from friends."
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` if the user is not in your friends list or missing friend_id.
+- `401 Unauthorized` if not authenticated.
+
+---
+
+#### Get Mutual Friends
+
+```http
+GET /api/friends/match/
+Authorization: Bearer <access_token>
+```
+
+Returns a list of user IDs who are mutual friends (i.e., both users have each other in their friends list).
+
+**Response (200 OK):**
+```json
+{
+  "mutual_friends": [2, 5, 7]
+}
+```
+
+**Error Response (401 Unauthorized):**
+```json
+{
+  "detail": "Authentication credentials were not provided."
+}
+```
+
+**Note:**
+- Only users who are in your friends list and also have you in their friends list will be returned.
