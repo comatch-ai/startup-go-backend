@@ -48,6 +48,13 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         """
-        Delete a project.
+        Delete a project and remove it from the creator's profile.
         """
+        # Remove project ID from creator's profile
+        profile = instance.created_by.profile
+        if profile.projects and str(instance.id) in profile.projects:
+            profile.projects.remove(str(instance.id))
+            profile.save()
+        
+        # Delete the project
         instance.delete()

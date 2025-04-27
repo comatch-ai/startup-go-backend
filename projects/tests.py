@@ -137,6 +137,10 @@ class ProjectAPITests(TestCase):
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertEqual(Project.objects.count(), 0)
+        
+        # Verify project ID is removed from creator's profile
+        self.user.profile.refresh_from_db()
+        self.assertNotIn(str(self.project.id), self.user.profile.projects)
 
     def test_filter_projects(self):
         """
