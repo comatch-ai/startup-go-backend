@@ -4,6 +4,15 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from users.serializers import UserProfileSerializer
+from rest_framework import viewsets
+from rest_framework.decorators import action
+from django.contrib.auth import get_user_model
+from .models import Recommendation
+from .serializers import RecommendationSerializer
+from .service import RecommendationService
+import logging
+
+logger = logging.getLogger(__name__)
 
 def jaccard_similarity(set1, set2):
     if not set1 or not set2:
@@ -90,3 +99,56 @@ class RecommendationView(APIView):
         recommendations.sort(key=lambda x: x['score'], reverse=True)
 
         return Response(recommendations, status=status.HTTP_200_OK)
+
+class RecommendationViewSet(viewsets.ModelViewSet):
+    queryset = Recommendation.objects.all()
+    serializer_class = RecommendationSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return self.queryset.filter(user=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def get_recommendations(self, request):
+        """
+        Get personalized recommendations for the current user
+        """
+        try:
+            service = RecommendationService()
+            recommendations = service.get_recommendations_for_user(
+                user_id=request.user.id,
+                top_k=10
+            )
+            
+            return Response({
+                'status': 'success',
+                'data': recommendations
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting recommendations: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': 'Failed to get recommendations'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['post'])
+    def update_recommendations(self, request):
+        """
+        Trigger recommendation model update
+        """
+        try:
+            service = RecommendationService()
+            service.update_recommendations()
+            
+            return Response({
+                'status': 'success',
+                'message': 'Recommendations update started'
+            })
+            
+        except Exception as e:
+            logger.error(f"Error updating recommendations: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': 'Failed to update recommendations'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
