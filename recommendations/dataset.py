@@ -112,3 +112,63 @@ class CofounderPairDataset(Dataset):
         label = torch.tensor(1.0)
         
         return embedding_a, embedding_b, label 
+    
+class CofounderPairDatasetWithHistory(Dataset):
+    def __init__(self, text_encoder: str = 'all-MiniLM-L6-v2', history_max_len: int = 5):
+        self.text_encoder = SentenceTransformer(text_encoder)
+        self.users = list(User.objects.all())
+        self.user_profiles = {user.id: self._get_user_features(user) for user in self.users}
+        self.user_histories = {user.id: self._get_user_history(user) for user in self.users}
+        self.positive_pairs = self._get_positive_pairs()
+        self.history_max_len = history_max_len
+
+    def _get_user_features(self, user: User) -> Dict:
+        profile = user.profile
+        text_features = {
+            'skills': profile.skills or '',
+            'bio': profile.bio or '',
+            'industry': profile.industry or '',
+            'role_interest': profile.role_interest or ''
+        }
+        return text_features
+
+    def _get_user_history(self, user: User) -> List[str]:
+        recs = Recommendation.objects.filter(user=user).order_by('-created_at')[:self.history_max_len]
+        texts = []
+        for rec in recs:
+            try:
+                partner_profile = rec.project.user.profile
+                text = f"{partner_profile.skills or ''}, {partner_profile.bio or ''}"
+                texts.append(text)
+            except Exception:
+                continue
+        return texts
+
+    def _get_positive_pairs(self) -> List[Tuple[int, int]]:
+        return [(rec.user.id, rec.project.user.id) for rec in Recommendation.objects.all()]
+
+    def _get_user_embedding(self, user_id: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        text_feat = self.user_profiles[user_id]
+        history_feat = self.user_histories[user_id]
+
+        profile_embedding = self.text_encoder.encode(
+            [text_feat[k] for k in ['skills', 'bio', 'industry', 'role_interest']], convert_to_tensor=True
+        ).mean(dim=0)
+
+        if len(history_feat) == 0:
+            history_embedding = torch.zeros_like(profile_embedding)
+        else:
+            history_embedding = self.text_encoder.encode(history_feat, convert_to_tensor=True).mean(dim=0)
+
+        return profile_embedding, history_embedding
+
+    def __len__(self):
+        return len(self.positive_pairs)
+
+    def __getitem__(self, idx: int):
+        user_a_id, user_b_id = self.positive_pairs[idx]
+        a_profile, a_history = self._get_user_embedding(user_a_id)
+        b_profile, b_history = self._get_user_embedding(user_b_id)
+        label = torch.tensor(1.0)
+        return a_profile, a_history, b_profile, b_history, label
+    
