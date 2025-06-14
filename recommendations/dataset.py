@@ -6,17 +6,24 @@ from .models import Recommendation
 import numpy as np
 from typing import Tuple, List, Dict
 import torch.nn.functional as F
+from .faiss_utils import FAISSIndexManager
 
 class CofounderPairDataset(Dataset):
     def __init__(
         self,
         text_encoder: str = 'all-MiniLM-L6-v2',
         max_length: int = 128,
-        negative_ratio: float = 1.0
+        negative_ratio: float = 1.0,
+        use_faiss: bool = True,
+        min_data_size_for_ivf: int = 10000,
+        nlist: int = 100,
+        nprobe: int = 10,
+        nbits: int = 8
     ):
         self.text_encoder = SentenceTransformer(text_encoder)
         self.max_length = max_length
         self.negative_ratio = negative_ratio
+        self.use_faiss = use_faiss
         
         # Load all user profiles
         self.users = list(User.objects.all())
@@ -25,6 +32,52 @@ class CofounderPairDataset(Dataset):
         # Get positive pairs from recommendations
         self.positive_pairs = self._get_positive_pairs()
         
+        # Initialize FAISS index if needed
+        if self.use_faiss:
+            self._init_faiss_index(min_data_size_for_ivf, nlist, nprobe, nbits)
+            
+    def _init_faiss_index(self, min_data_size_for_ivf: int, nlist: int, nprobe: int, nbits: int):
+        """Initialize FAISS index for fast similarity search"""
+        # Get all user embeddings
+        all_embeddings = []
+        self.user_ids = []
+        
+        for user in self.users:
+            embedding = self._get_user_embedding(user.id)
+            all_embeddings.append(embedding)
+            self.user_ids.append(user.id)
+            
+        # Convert to tensor
+        all_embeddings = torch.stack(all_embeddings)
+        
+        # Create FAISS index manager
+        self.index_manager = FAISSIndexManager(
+            embedding_dim=all_embeddings.shape[1],
+            min_data_size_for_ivf=min_data_size_for_ivf,
+            nlist=nlist,
+            nprobe=nprobe,
+            nbits=nbits
+        )
+        
+        # Initialize index with embeddings
+        self.index_manager.init_index(all_embeddings)
+        
+    def get_similar_users(self, user_id: int, k: int = 5) -> List[int]:
+        """Get k most similar users using FAISS"""
+        if not self.use_faiss:
+            raise ValueError("FAISS index not initialized. Set use_faiss=True in constructor.")
+            
+        # Get user embedding
+        user_embedding = self._get_user_embedding(user_id)
+        
+        # Search
+        distances, indices = self.index_manager.search(user_embedding.unsqueeze(0), k + 1)  # +1 because user might be in results
+        
+        # Convert indices to user IDs and remove self
+        similar_user_ids = [self.user_ids[idx] for idx in indices[0] if self.user_ids[idx] != user_id]
+        
+        return similar_user_ids[:k]
+    
     def _get_user_features(self, user: User) -> Dict:
         """Extract and preprocess user features"""
         profile = user.profile

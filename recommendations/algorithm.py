@@ -1,7 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Tuple
+from typing import Tuple, List, Optional
+import faiss
+import numpy as np
+from .faiss_utils import FAISSIndexManager
 
 class Tower(nn.Module):
     def __init__(self, input_dim: int, hidden_dims: list = [512, 256, 128], dropout: float = 0.2):
@@ -30,11 +33,66 @@ class TwinTowerModel(nn.Module):
         self,
         input_dim: int,
         hidden_dims: list = [512, 256, 128],
-        dropout: float = 0.2
+        dropout: float = 0.2,
+        use_faiss: bool = True,
+        nlist: int = 100,  # number of clusters for IVF
+        nprobe: int = 10,  # number of clusters to probe
+        nbits: int = 8,    # bits per code for PQ
+        min_data_size_for_ivf: int = 10000  # minimum data size to use IVF
     ):
         super().__init__()
         self.tower = Tower(input_dim, hidden_dims, dropout)
         self.embedding_dim = hidden_dims[-1]
+        self.use_faiss = use_faiss
+        
+        # Initialize FAISS index manager
+        if self.use_faiss:
+            self.index_manager = FAISSIndexManager(
+                embedding_dim=self.embedding_dim,
+                min_data_size_for_ivf=min_data_size_for_ivf,
+                nlist=nlist,
+                nprobe=nprobe,
+                nbits=nbits
+            )
+        
+    def init_faiss_index(self, embeddings: Optional[torch.Tensor] = None):
+        """Initialize FAISS index with embeddings
+        
+        Args:
+            embeddings: Optional pre-computed embeddings. If None, index will be empty
+        """
+        if not self.use_faiss:
+            return
+            
+        if embeddings is not None:
+            self.index_manager.init_index(embeddings)
+            
+    def add_to_index(self, embeddings: torch.Tensor):
+        """Add new embeddings to the FAISS index
+        
+        Args:
+            embeddings: New embeddings to add
+        """
+        if not self.use_faiss:
+            raise ValueError("FAISS index not initialized. Call init_faiss_index first.")
+            
+        self.index_manager.add_to_index(embeddings)
+            
+    def search_similar(self, query_embeddings: torch.Tensor, k: int = 5) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Search for similar embeddings using FAISS
+        
+        Args:
+            query_embeddings: Query embeddings
+            k: Number of nearest neighbors to return
+            
+        Returns:
+            Tuple of (distances, indices)
+        """
+        if not self.use_faiss:
+            raise ValueError("FAISS index not initialized. Call init_faiss_index first.")
+            
+        distances, indices = self.index_manager.search(query_embeddings, k)
+        return torch.from_numpy(distances), torch.from_numpy(indices)
         
     def forward(
         self,
@@ -86,8 +144,8 @@ class TwinTowerModel(nn.Module):
             Normalized embeddings
         """
         emb = self.tower(x)
-        return F.normalize(emb, p=2, dim=1) 
-    
+        return F.normalize(emb, p=2, dim=1)
+
 class HistoryTower(nn.Module):
     """
     Extended tower that encodes both profile features and sequential history.
@@ -141,11 +199,81 @@ class HistoryAwareTwinTowerModel(nn.Module):
         profile_dim: int,
         history_dim: int,
         hidden_dim: int = 128,
-        dropout: float = 0.2
+        dropout: float = 0.2,
+        use_faiss: bool = True,
+        nlist: int = 100,  # number of clusters for IVF
+        nprobe: int = 10,  # number of clusters to probe
+        nbits: int = 8,    # bits per code for PQ
+        min_data_size_for_ivf: int = 10000  # minimum data size to use IVF
     ):
         super().__init__()
         self.user_tower = HistoryTower(profile_dim, history_dim, hidden_dim, dropout)
         self.partner_tower = HistoryTower(profile_dim, history_dim, hidden_dim, dropout)
+        self.use_faiss = use_faiss
+        self.embedding_dim = hidden_dim
+        
+        # Initialize FAISS index manager
+        if self.use_faiss:
+            self.index_manager = FAISSIndexManager(
+                embedding_dim=self.embedding_dim,
+                min_data_size_for_ivf=min_data_size_for_ivf,
+                nlist=nlist,
+                nprobe=nprobe,
+                nbits=nbits
+            )
+
+    def init_faiss_index(self, profile_embeddings: Optional[torch.Tensor] = None, history_embeddings: Optional[torch.Tensor] = None):
+        """Initialize FAISS index with embeddings
+        
+        Args:
+            profile_embeddings: Optional pre-computed profile embeddings
+            history_embeddings: Optional pre-computed history embeddings
+        """
+        if not self.use_faiss:
+            return
+            
+        if profile_embeddings is not None and history_embeddings is not None:
+            # Combine profile and history embeddings
+            combined_embeddings = self._combine_embeddings(profile_embeddings, history_embeddings)
+            self.index_manager.init_index(combined_embeddings)
+            
+    def _combine_embeddings(self, profile_emb: torch.Tensor, history_emb: torch.Tensor) -> torch.Tensor:
+        """Combine profile and history embeddings"""
+        return self.user_tower.combine_layer(torch.cat([profile_emb, history_emb], dim=1))
+            
+    def add_to_index(self, profile_embeddings: torch.Tensor, history_embeddings: torch.Tensor):
+        """Add new embeddings to the FAISS index
+        
+        Args:
+            profile_embeddings: Profile embeddings to add
+            history_embeddings: History embeddings to add
+        """
+        if not self.use_faiss:
+            raise ValueError("FAISS index not initialized. Call init_faiss_index first.")
+            
+        # Combine embeddings
+        combined_embeddings = self._combine_embeddings(profile_embeddings, history_embeddings)
+        self.index_manager.add_to_index(combined_embeddings)
+            
+    def search_similar(self, profile_embeddings: torch.Tensor, history_embeddings: torch.Tensor, k: int = 5) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Search for similar embeddings using FAISS
+        
+        Args:
+            profile_embeddings: Profile query embeddings
+            history_embeddings: History query embeddings
+            k: Number of nearest neighbors to return
+            
+        Returns:
+            Tuple of (distances, indices)
+        """
+        if not self.use_faiss:
+            raise ValueError("FAISS index not initialized. Call init_faiss_index first.")
+            
+        # Combine query embeddings
+        query_embeddings = self._combine_embeddings(profile_embeddings, history_embeddings)
+        distances, indices = self.index_manager.search(query_embeddings, k)
+        
+        return torch.from_numpy(distances), torch.from_numpy(indices)
 
     def forward(
         self,

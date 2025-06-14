@@ -10,7 +10,9 @@ from django.contrib.auth import get_user_model
 from .models import Recommendation
 from .serializers import RecommendationSerializer
 from .service import RecommendationService
+from django.conf import settings
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +116,23 @@ class RecommendationViewSet(viewsets.ModelViewSet):
         Get personalized recommendations for the current user
         """
         try:
+            # 初始化服务并加载 FAISS 索引
             service = RecommendationService()
+            
+            # 从 Git LFS 加载索引
+            repo_path = getattr(settings, 'FAISS_INDEX_REPO_PATH', os.path.join(settings.BASE_DIR, 'faiss_indices'))
+            index_path = getattr(settings, 'FAISS_INDEX_PATH', 'models/faiss_index')
+            branch = getattr(settings, 'FAISS_INDEX_BRANCH', 'main')
+            
+            success = service.load_faiss_index_from_git_lfs(
+                repo_path=repo_path,
+                index_path=index_path,
+                branch=branch
+            )
+            
+            if not success:
+                logger.warning("Failed to load FAISS index from Git LFS, falling back to default recommendations")
+            
             recommendations = service.get_recommendations_for_user(
                 user_id=request.user.id,
                 top_k=10
@@ -135,15 +153,28 @@ class RecommendationViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def update_recommendations(self, request):
         """
-        Trigger recommendation model update
+        Trigger recommendation model update and save index to Git LFS
         """
         try:
             service = RecommendationService()
             service.update_recommendations()
             
+            # 保存更新后的索引到 Git LFS
+            repo_path = getattr(settings, 'FAISS_INDEX_REPO_PATH', os.path.join(settings.BASE_DIR, 'faiss_indices'))
+            index_path = getattr(settings, 'FAISS_INDEX_PATH', 'models/faiss_index')
+            
+            success = service.save_faiss_index_to_git_lfs(
+                repo_path=repo_path,
+                index_path=index_path,
+                commit_message="Update FAISS index with new recommendations"
+            )
+            
+            if not success:
+                logger.warning("Failed to save FAISS index to Git LFS")
+            
             return Response({
                 'status': 'success',
-                'message': 'Recommendations update started'
+                'message': 'Recommendations update completed'
             })
             
         except Exception as e:
@@ -151,4 +182,120 @@ class RecommendationViewSet(viewsets.ModelViewSet):
             return Response({
                 'status': 'error',
                 'message': 'Failed to update recommendations'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'])
+    def get_faiss_status(self, request):
+        """
+        Get the current status of FAISS index
+        """
+        try:
+            service = RecommendationService()
+            
+            # 检查索引是否已加载
+            if service.index_manager is None:
+                return Response({
+                    'status': 'not_initialized',
+                    'message': 'FAISS index not initialized'
+                })
+                
+            # 获取索引信息
+            index_info = {
+                'is_initialized': service.index_manager.index is not None,
+                'index_type': type(service.index_manager.index).__name__,
+                'num_vectors': service.index_manager.index.ntotal if service.index_manager.index else 0,
+                'dimension': service.index_manager.embedding_dim,
+                'use_gpu': service.index_manager.use_gpu
+            }
+            
+            return Response({
+                'status': 'success',
+                'data': index_info
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting FAISS status: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': 'Failed to get FAISS status'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['post'])
+    def reload_faiss_index(self, request):
+        """
+        Reload FAISS index from Git LFS
+        """
+        try:
+            service = RecommendationService()
+            
+            # 从 Git LFS 加载索引
+            repo_path = getattr(settings, 'FAISS_INDEX_REPO_PATH', os.path.join(settings.BASE_DIR, 'faiss_indices'))
+            index_path = getattr(settings, 'FAISS_INDEX_PATH', 'models/faiss_index')
+            branch = getattr(settings, 'FAISS_INDEX_BRANCH', 'main')
+            
+            success = service.load_faiss_index_from_git_lfs(
+                repo_path=repo_path,
+                index_path=index_path,
+                branch=branch
+            )
+            
+            if success:
+                return Response({
+                    'status': 'success',
+                    'message': 'FAISS index reloaded successfully'
+                })
+            else:
+                return Response({
+                    'status': 'error',
+                    'message': 'Failed to reload FAISS index'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+        except Exception as e:
+            logger.error(f"Error reloading FAISS index: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': 'Failed to reload FAISS index'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['post'])
+    def update_faiss_index(self, request):
+        """
+        Update FAISS index with current user embeddings
+        """
+        try:
+            service = RecommendationService()
+            
+            # 更新索引
+            if service._update_faiss_index():
+                # 保存更新后的索引到 Git LFS
+                repo_path = getattr(settings, 'FAISS_INDEX_REPO_PATH', os.path.join(settings.BASE_DIR, 'faiss_indices'))
+                index_path = getattr(settings, 'FAISS_INDEX_PATH', 'models/faiss_index')
+                
+                success = service.save_faiss_index_to_git_lfs(
+                    repo_path=repo_path,
+                    index_path=index_path,
+                    commit_message="Update FAISS index with new embeddings"
+                )
+                
+                if success:
+                    return Response({
+                        'status': 'success',
+                        'message': 'FAISS index updated and saved successfully'
+                    })
+                else:
+                    return Response({
+                        'status': 'error',
+                        'message': 'Failed to save updated FAISS index'
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            else:
+                return Response({
+                    'status': 'error',
+                    'message': 'Failed to update FAISS index'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+        except Exception as e:
+            logger.error(f"Error updating FAISS index: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': 'Failed to update FAISS index'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
