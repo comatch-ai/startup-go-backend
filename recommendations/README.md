@@ -85,6 +85,30 @@ The recommendation system consists of several key components:
    )
    ```
 
+## FAISS Indexing
+
+To accelerate nearest-neighbor search over the learned user embeddings, the system
+integrates **FAISS** (Facebook AI Similarity Search).
+
+### Installation
+
+Only CPU-only version is implemented:
+
+```bash
+# CPU version (cross-platform)
+pip install faiss-cpu
+
+# GPU version (requires CUDA)
+pip install faiss-gpu    # CUDA >= 11.2
+```
+
+macOS note: If you hit an OpenMP duplicate-runtime error, add
+export DYLD_LIBRARY_PATH=/opt/homebrew/opt/libomp/lib:$DYLD_LIBRARY_PATH
+to ~/.zshrc and reload (source ~/.zshrc). See the Troubleshooting section.
+
+
+
+
 ## Monitoring
 
 The system includes basic logging and monitoring:
