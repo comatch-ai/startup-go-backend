@@ -106,7 +106,12 @@ macOS note: If you hit an OpenMP duplicate-runtime error, add
 export DYLD_LIBRARY_PATH=/opt/homebrew/opt/libomp/lib:$DYLD_LIBRARY_PATH
 to ~/.zshrc and reload (source ~/.zshrc). See the Troubleshooting section.
 
+### Run test for FAISS
+Run the following command from the project root:
 
+```bash
+pytest
+```
 
 
 ## Monitoring
@@ -122,6 +127,8 @@ The system includes basic logging and monitoring:
 - sentence-transformers
 - Django REST Framework
 - NumPy
+- pytest-pythonpath
+- pytest-django
 
 ## Notes
 

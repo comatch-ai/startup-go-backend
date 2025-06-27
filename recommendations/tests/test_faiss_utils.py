@@ -1,7 +1,10 @@
 import pytest
 import torch
 import numpy as np
-from ..faiss_utils import FAISSIndexManager
+
+import faiss
+from recommendations.faiss_utils.manager import FAISSIndexManager
+
 
 @pytest.fixture
 def small_embeddings():
