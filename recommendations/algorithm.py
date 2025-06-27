@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from typing import Tuple, List, Optional
 import faiss
 import numpy as np
-from .faiss_utils import FAISSIndexManager
+from .faiss_utils.manager import FAISSIndexManager
 
 class Tower(nn.Module):
     def __init__(self, input_dim: int, hidden_dims: list = [512, 256, 128], dropout: float = 0.2):
