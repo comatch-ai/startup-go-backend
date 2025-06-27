@@ -4,7 +4,7 @@ import numpy as np
 from django.contrib.auth.models import User
 from .algorithm import TwinTowerModel
 from .dataset import CofounderPairDataset
-from .faiss_utils import FAISSIndexManager
+from .faiss_utils.manager import FAISSIndexManager
 import logging
 from functools import lru_cache
 import os
