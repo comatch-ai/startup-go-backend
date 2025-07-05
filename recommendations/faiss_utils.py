@@ -1,3 +1,4 @@
+# Unused -> FAISSIndexManager has been moved to .faiss_utils.manager
 import faiss
 import numpy as np
 import torch
